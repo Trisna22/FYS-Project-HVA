@@ -1,135 +1,115 @@
-#	Author:		Trisna Quebe
 #	Name:		wsgi.py (Webserver response in python)
 #	Project:	Fasten Your Seatbelts (FYS)
+#	Creation date:	9-10-2019
 
 import sys
 import datetime
 from wsgiref.simple_server import make_server
 from cgi import parse_qs, escape
 
+import urllib.parse as urlparse
 
-# For debugging.
 debug = False
 
-# Kijkt of de gebruikersnaam of wachtwoord bestaat in de database file.
-def checkLogin(c1, c2):
-	f = open("/home/tris/database.txt", "r")
-	for i in f:
-		if i.find(c1 + "   ") != -1:
-			if i.find(c2 + "   ") != -1:
-				return True
-	f.close()
-	return False
+# If debug is set, run this code for the website.
+def run_debug_code(environ, start_response):
+	status = "200 OK"
+	lines = [
+		'<html>',
+		'       <body>',
+		'               <title>Test-wsgi page for fys</title>',
+		'		Username: {us:s}<br>',
+		'		Password: {pw:s}<br>',
+		'       </body>',
+		'</html>' ]
 
-# Maakt een nieuw account aan in the database file.
-def createAccount(c1, c2, c3):
 
-	# Kijkt of de gebruikers naam al bestaat.
-	if checkUserNameMail(c1, c3) == True:
-		return "Gebruikersnaam of emailadres bestaat al!"
+	s = environ['wsgi.input'].read().decode()
+	params = urlparse.parse_qs(s)
 
-	# Vanwege permission problemen heb ik het in de home folder gedaan.
-	f = open("/home/tris/database.txt", "a")
-	f.write(c1 + "   " + c2 + "   " + c3 + "\n")
-	f.close()
+	username = params.get('USERNAME', [''])[0]
+	password = params.get('PASSWORD', [''])[0]
 
-	return "TRUE"
 
-# Kijkt of de gebruikersnaam of email al bestaat.
-def checkUserNameMail(user, mail):
-	f = open("/home/tris/database.txt", "r")
-	for i in f:
-		if i.find(user + "   ") != -1 or i.find("   " + mail) != -1:
-			return True
+	html = '\n'.join(lines).format(ev=str(environ), us=str(username),
+		pw=str(password))
 
-	f.close
-	return False
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
 
-# Main function van script.
+
+# Checks username and password for login.
+# (dummy)
+def checkCredentials(username, password):
+	if username == "admin" and password == "pass":
+		return True
+	else:
+		return False
+
+# Prints out the page for wrong username/password.
+def incorrect_password(environ, start_response):
+	status = "200 OK"
+	lines = [
+		'<html>',
+		'       <body>',
+		'               <title>Test-wsgi page for fys</title>',
+		'		<h3>Wrong username/password!</h3>',
+		'		<h4>Dummy login page</h4>',
+		'       </body>',
+		'</html>' ]
+
+	html = '\n'.join(lines)
+
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
+
+
 def application(environ, start_response):
 
+	# Check if we want the debug code to run.
 	if debug == True:
-		status = "200 OK"
-		array = []
-		fs = open("/var/www/FYS/index.html", "r")
-		for i in fs:
-			array.append(i)
+		return run_debug_code(environ, start_response)
 
-		html = '\n'.join(array)
-		response_header = [('Content-type', 'text/html')]
-		start_response(status, response_header)
-		return [bytes(html, 'utf-8')]
 
-	# GET REQUEST.
-	if environ['REQUEST_METHOD'] == 'GET' and environ['REQUEST_URI'] == '/wsgi':
-		status = "200 OK"
-		array = []
-		fs = open("/var/www/FYS/index.html", "r")
-		for i in fs:
-			array.append(i)
+	# Retrieve login credentials.
+	s = environ['wsgi.input'].read().decode()
+	params = urlparse.parse_qs(s)
+	username = params.get('USERNAME', [''])[0]
+	password = params.get('PASSWORD', [''])[0]
 
-		html = '\n'.join(array)
-		response_header = [('Content-type', 'text/html')]
-		start_response(status, response_header)
-		return [bytes(html, 'utf-8')]
 
-	# Response to the login.
-	elif environ['REQUEST_METHOD'] == 'GET' and '/wsgi?login;' in environ['REQUEST_URI']:
-		status = "200 OK"
+	# Check if credentials is correct.
+	if checkCredentials(username, password) == False:
+		return incorrect_password(environ, start_response)
 
-		str = environ['REQUEST_URI']
 
-		lines = []
-		# Split the string in information values.
-		c1 = str[str.find("user=")+5:str.find("&")]
-		c2 = str[str.find("&")+6:]
+	#
+	#
+	#	TEST CODE beneden.
+	#
+	#
+	status = "200 OK"
+	lines = [
+		'<html>',
+		'       <body>',
+		'               <title>Test-wsgi page for fys</title>',
+		'		Username: {us:s}<br>',
+		'		Password: {pw:s}<br>',
+		'       </body>',
+		'</html>' ]
 
-		# Check if username and password exists in database.
-		if checkLogin(c1, c2) == True:
-			lines.append("TRUE")
-		else:
-			lines.append("Fout gebruikersnaam of wachtwoord ingevoerd!")
 
-		html = '\n'.join(lines)
-		response_header = [('Content-type', 'text/html')]
-		start_response(status, response_header)
-		return [bytes(html, 'utf-8')]
 
-	# Response to creating account.
-	elif environ['REQUEST_METHOD'] == 'GET' and '/wsgi?signup;' in environ['REQUEST_URI']:
-		status = "200 OK"
+	html = '\n'.join(lines).format(us=str(username),
+		pw=str(password))
 
-		str = environ['REQUEST_URI']
-		lines = []
-
-		# Split the string in information values.
-		c1 = str[str.find("user=")+5:str.find("&pass")]
-		c2 = str[str.find("&pass=")+6:str.find("&email")]
-		c3 = str[str.find("&email=")+7:]
-
-		# Creates account.
-		lines.append(createAccount(c1, c2, c3))
-
-		html = '\n'.join(lines)
-		response_header = [('Content-type', 'text/html')]
-		start_response(status, response_header)
-		return [bytes(html, 'utf-8')]
-
-	else:
-		status = "200 OK"
-		lines = [
-			'<html>',
-			'       <body>',
-			'               <title>Test-wsgi page for fys</title>',
-			'		<p>Other request</p>',
-			'		<peviron: {ev:s}</p>',
-			'       </body>',
-			'</html>' ]
-		html = '\n'.join(lines).format(ev=str(environ))
-		response_header = [('Content-type', 'text/html')]
-		start_response(status, response_header)
-		return [bytes(html, 'utf-8')]
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
 
 
 if __name__ == "__main__":
 	application({}, print)
+
