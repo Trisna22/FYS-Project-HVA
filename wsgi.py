@@ -1,6 +1,7 @@
 #	Name:		wsgi.py (Webserver response in python)
 #	Project:	Fasten Your Seatbelts (FYS)
 #	Creation date:	9-10-2019
+#	Author:		Trisna Quebe ic106
 
 import sys
 import datetime
