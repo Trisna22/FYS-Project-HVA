@@ -1,0 +1,30 @@
+TO ADD ROUTING AND ADD INTERNET TO CLIENTS OF ACCESS POINT:
+https://www.maketecheasier.com/set-up-raspberry-pi-as-wireless-access-point/
+
+        edit /etc/sysctl.conf and add 'net.ipv4.ip_forward=1' to file
+        run:
+                sudo iptables -t nat -A  POSTROUTING -o eth0 -j MASQUERADE
+                sudo iptables -A FORWARD -i eth0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+                sudo iptables -A FORWARD -i wlan0 -o eth0 -j ACCEPT
+
+                sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+
+                sudo sh -c "iptables-save > /etc/iptables.ipv4.nat"
+
+
+IPTABLES:
+
+        Everything needs to be in excact order!!!
+
+        #Allow ssh connection only.
+        sudo iptables -A INPUT -p tcp --dport 22 --jump ACCEPT
+
+        #Drop every connection.
+        sudo iptables -A INPUT --jump DROP
+
+        #Add IP
+        sudo iptables -A INPUT --source x.x.x.x -p tcp --jump ACCEPT
+        sudo iptables -D INPUT --jump DROP
+        sudo iptables -A INPUT --jump DROP
+        
+        
