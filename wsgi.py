@@ -9,6 +9,9 @@ from wsgiref.simple_server import make_server
 from cgi import parse_qs, escape
 
 import urllib.parse as urlparse
+import os
+import base64
+import subprocess
 
 debug = False
 
@@ -86,25 +89,33 @@ def application(environ, start_response):
 		return incorrect_password(environ, start_response)
 
 
-	#
-	#
-	#	TEST CODE beneden.
-	#
-	#
+	# IP address we want to allow to our network.
+	IP = environ['REMOTE_ADDR']
+
+	# Using subprocess module to create a system command with iptables.
+	command = ['sudo', 'iptables', '-t', 'nat', '-A', 'POSTROUTING', '--source', IP, '-o', 'eth0', '-j', 'MASQUERADE']
+	p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	error_msg = p.communicate()
+
+	# Our response.
 	status = "200 OK"
 	lines = [
 		'<html>',
 		'       <body>',
-		'               <title>Test-wsgi page for fys</title>',
+		'               <title>Succesfully logged in!</title>',
+		'		<center>',
 		'		Username: {us:s}<br>',
 		'		Password: {pw:s}<br>',
+		'		<br><br>',
+		'		<h3>You can use the wifi network now!<h3>',
+		'		<p>Client IP address: {ip:s}</p>',
+		'		<p>Error msg: {er:s}</p>',
+		'		</center>',
 		'       </body>',
 		'</html>' ]
-
-
-
 	html = '\n'.join(lines).format(us=str(username),
-		pw=str(password))
+		pw=str(password), ip=str(environ['REMOTE_ADDR']), er=str(error_msg))
+
 
 	response_header = [('Content-type', 'text/html')]
 	start_response(status, response_header)
