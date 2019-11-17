@@ -1,16 +1,10 @@
-#	Name:		wsgi.py (Webserver response in python)
-#	Project:	Fasten Your Seatbelts (FYS)
-#	Creation date:	9-10-2019
-#	Author:		Trisna Quebe ic106
-
-import sys
-import datetime
-from wsgiref.simple_server import make_server
-from cgi import parse_qs, escape
+#	Name: 				wsgi.py (Webserver response in python)
+#	Project: 			Fasten Your Seatbelts (FYS)
+#	Creation date: 			9-10-2019
+#	Author: 			Trisna Quebe ic106
 
 import urllib.parse as urlparse
 import os
-import base64
 import subprocess
 
 debug = False
@@ -42,10 +36,40 @@ def run_debug_code(environ, start_response):
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
 
+# Checks if the external variable contains code execution
+# by string escaping or weird characters.
+def checkStringValue(string):
+
+	# Set up a list with forbidden characters.
+	forbiddenChars = ['#', '\'', '\\', '"', '~', '/', '>', '@',
+			'<', '{', '}', ';', ':', '(', ')', '?', '*', '$', '!', '|']
+
+	# Compare every character of string with the list.
+	for characterFromString in string:
+		for charFromForbiddenList in forbiddenChars:
+			if characterFromString == charFromForbiddenList:
+				return False
+
+	# Check if the values of the string is between 0-z (48 - 122)
+	# on the ASCII table, so no weird characters can be used.
+	for characterFromString in string:
+		if ord(characterFromString) < 48 or ord(characterFromString) > 122:
+			return False
+
+	return True
 
 # Checks username and password for login.
 # (dummy)
 def checkCredentials(username, password):
+
+	# Check if the strings doesn't contain any escaping code.
+	if checkStringValue(username) == False:
+		return False
+	if checkStringValue(password) == False:
+		return False
+
+	# Now we know that the variables are safe,
+	# we can check if it is corerct.
 	if username == "admin" and password == "pass":
 		return True
 	else:
@@ -53,35 +77,56 @@ def checkCredentials(username, password):
 
 # Prints out the page for wrong username/password.
 def incorrect_password(environ, start_response):
-	status = "200 OK"
+	status = "307 Temporary Redirect"
+
+	"""
 	lines = [
 		'<html>',
 		'       <body>',
-		'               <title>Test-wsgi page for fys</title>',
+		'               <title>Wrong credentials</title>',
 		'		<h3>Wrong username/password!</h3>',
 		'		<h4>Dummy login page</h4>',
 		'       </body>',
 		'</html>' ]
+	"""
 
-	html = '\n'.join(lines)
+	html = '\n'
 
-	response_header = [('Content-type', 'text/html')]
+	response_header = [('Content-type', 'text/html'), ('Location', '/wrong_password.html')]
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
 
+# If the user sent a wrong HTTP request.
+def wrong_request(environ, start_response):
+	status = "307 Temporary Redirect"
+	lines = [
+		'<html>',
+		'	<body>',
+		'		<title>Bad request</title>',
+		'		<h3>Invalid request sent!</h3>',
+		'	</body>',
+		'</html>' ]
+	html = '\n'.join(lines)
 
+	response_header = [('Content-type', 'text/html'), ('Location', '/index.html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
+
+# Main function of program.
 def application(environ, start_response):
 
 	# Check if we want the debug code to run.
 	if debug == True:
 		return run_debug_code(environ, start_response)
 
+	if environ['REQUEST_METHOD'] != 'POST':
+		return wrong_request(environ, start_response)
 
 	# Retrieve login credentials.
 	s = environ['wsgi.input'].read().decode()
 	params = urlparse.parse_qs(s)
-	username = params.get('USERNAME', [''])[0]
-	password = params.get('PASSWORD', [''])[0]
+	username = params.get('TICKETNUMBER', [''])[0]
+	password = params.get('SEATNUMBER', [''])[0]
 
 
 	# Check if credentials is correct.
@@ -99,6 +144,7 @@ def application(environ, start_response):
 
 	# Our response.
 	status = "200 OK"
+
 	lines = [
 		'<html>',
 		'       <body>',
