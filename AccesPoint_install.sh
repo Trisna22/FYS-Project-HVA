@@ -60,12 +60,17 @@ iptables -t nat --flush
 
 echo "[*] Allow tcp connections to ports 22, 80, 443."
 iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-iptables -A INPUT -p tcp --dport 80 --destination 192.168.22.1 -j ACCEPT
-iptables -A INPUT -p tcp --dport 443 --destination 192.168.22.1 -j ACCEPT
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 iptables -A INPUT -p tcp --source 127.0.0.1 --destination 127.0.0.1 -j ACCEPT
+iptables -A INPUT -p tcp --destination 10.42.0.170 -j ACCEPT
 
-# Delete if not debugging......
-echo "[*] Debug IP priveledges."
+echo "[*] Redirecting devices to login page."
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination localhost:80
+iptables -t nat -A PREROUTING -p tcp --dport 443 -j DNAT --to-destination localhost:80
+
+# Delete if not debugging on windows......
+echo "[*] Debug IP priveledges for windows."
 iptables -I INPUT -p tcp --source 192.168.137.1 -j ACCEPT
 # .............................
 

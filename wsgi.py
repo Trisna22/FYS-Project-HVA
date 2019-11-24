@@ -1,11 +1,12 @@
 #	Name: 				wsgi.py (Webserver response in python)
 #	Project: 			Fasten Your Seatbelts (FYS)
 #	Creation date: 			9-10-2019
-#	Author: 			Trisna Quebe ic106
+#	Author: 			Trisna Quebe ic106-2
 
 import urllib.parse as urlparse
 import os
 import subprocess
+import mysql.connector as mariaDB
 
 debug = False
 
@@ -16,8 +17,9 @@ def run_debug_code(environ, start_response):
 		'<html>',
 		'       <body>',
 		'               <title>Test-wsgi page for fys</title>',
-		'		Username: {us:s}<br>',
-		'		Password: {pw:s}<br>',
+		'		TicketNumber: {us:s}<br>',
+		'		SeatNumber: {pw:s}<br>',
+		'		Environ vars: {en:s}<br>',
 		'       </body>',
 		'</html>' ]
 
@@ -25,12 +27,12 @@ def run_debug_code(environ, start_response):
 	s = environ['wsgi.input'].read().decode()
 	params = urlparse.parse_qs(s)
 
-	username = params.get('USERNAME', [''])[0]
-	password = params.get('PASSWORD', [''])[0]
+	username = params.get('TICKETNUMBER', [''])[0]
+	password = params.get('SEATNUMBER', [''])[0]
 
 
 	html = '\n'.join(lines).format(ev=str(environ), us=str(username),
-		pw=str(password))
+		pw=str(password), en=str(environ))
 
 	response_header = [('Content-type', 'text/html')]
 	start_response(status, response_header)
@@ -58,22 +60,36 @@ def checkStringValue(string):
 
 	return True
 
-# Checks username and password for login.
-# (dummy)
-def checkCredentials(username, password):
+# Checks ticketnumber and seatnumber for login.
+def checkCredentials(TICKETNUMBER, SEATNUMBER):
 
 	# Check if the strings doesn't contain any escaping code.
-	if checkStringValue(username) == False:
+	if checkStringValue(TICKETNUMBER) == False:
 		return False
-	if checkStringValue(password) == False:
+	if checkStringValue(SEATNUMBER) == False:
 		return False
 
 	# Now we know that the variables are safe,
-	# we can check if it is corerct.
-	if username == "admin" and password == "pass":
-		return True
-	else:
-		return False
+	# we can check if it is correct.
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute('SELECT EXISTS ( SELECT * FROM Passengers WHERE ticketNumber = \'' +
+		 TICKETNUMBER + '\' AND seatNumber = \'' + SEATNUMBER + '\');')
+
+	result = cursor.fetchall()
+	return result[0][0]
+
+# Adds current connected device to database.
+def UpdateLoggedInDatabase(TICKETNUMBER, SEATNUMBER, IP, MAC, LASTNAME):
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	insertQuery = "INSERT INTO LoggedIn VALUES (" + IP + ", " + MAC + ", " + TICKETNUMBER
+	insertQuery += ", " + SEATNUMBER + ", " + LASTNAME + "); "
+	cursor.execute(insertQuery)
+
+	connection.commit()
 
 # Prints out the page for wrong username/password.
 def incorrect_password(environ, start_response):
@@ -112,6 +128,54 @@ def wrong_request(environ, start_response):
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
 
+# Function that allows device connect to internet.
+def AllowDeviceToInternet(TICKETNUMBER, SEATNUMBER, IP, start_response):
+
+	# Connect to database.
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	# Retrieve firstname from database.
+	cursor.execute('SELECT firstName FROM Passengers WHERE ticketNumber = ' + TICKETNUMBER + ';')
+	result = cursor.fetchall()
+	FIRSTNAME = result[0][0].encode('ascii')
+
+	# Retrieve lastname from database.
+	cursor.execute('SELECT lastName FROM Passengers WHERE ticketNumber = ' + TICKETNUMBER + ';')
+	result = cursor.fetchall()
+	LASTNAME = result[0][0].encode('ascii')
+
+	MAC = "AA:BB:CC:DD:AA:BB"
+
+	# Using subprocess module to create a system command with iptables.
+	command = ['sudo', 'iptables', '-t', 'nat', '-A', 'POSTROUTING', '-m', 'mac', '--mac-source', MAC, '-o', 'eth0', '-j', 'MASQUERADE']
+	p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	error_msg = p.communicate()
+
+	#UpdateLoggedInDatabase(TICKETNUMBER, SEATNUMBER, IP, MAC, LASTNAME)
+
+	# Our response.
+	status = "200 OK"
+
+	lines = [
+		'<html>',
+		'       <body>',
+		'               <title>Succesfully logged in!</title>',
+		'		<br><br>',
+		'		<h3>Dear {fr:s} {ln:s},</br></br> you can use the internet now!<h3>',
+		'		<p>Client IP address: {ip:s}</p>',
+		'		<p>Client MAC address: {mc:s}</p>',
+		'		<p>Error msg: {er:s}</p>',
+		'       </body>',
+		'</html>' ]
+	html = '\n'.join(lines).format(fr=FIRSTNAME.decode('utf-8'), ln=LASTNAME.decode('utf-8'), ip=IP, mc=MAC, er=str(error_msg))
+
+
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
+
+
 # Main function of program.
 def application(environ, start_response):
 
@@ -125,48 +189,18 @@ def application(environ, start_response):
 	# Retrieve login credentials.
 	s = environ['wsgi.input'].read().decode()
 	params = urlparse.parse_qs(s)
-	username = params.get('TICKETNUMBER', [''])[0]
-	password = params.get('SEATNUMBER', [''])[0]
-
-
-	# Check if credentials is correct.
-	if checkCredentials(username, password) == False:
-		return incorrect_password(environ, start_response)
-
+	TICKETNUMBER = params.get('TICKETNUMBER', [''])[0]
+	SEATNUMBER = params.get('SEATNUMBER', [''])[0]
 
 	# IP address we want to allow to our network.
 	IP = environ['REMOTE_ADDR']
 
-	# Using subprocess module to create a system command with iptables.
-	command = ['sudo', 'iptables', '-t', 'nat', '-A', 'POSTROUTING', '--source', IP, '-o', 'eth0', '-j', 'MASQUERADE']
-	p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	error_msg = p.communicate()
+	# Check if credentials is correct.
+	if checkCredentials(TICKETNUMBER, SEATNUMBER) == False:
+		return incorrect_password(environ, start_response)
 
-	# Our response.
-	status = "200 OK"
-
-	lines = [
-		'<html>',
-		'       <body>',
-		'               <title>Succesfully logged in!</title>',
-		'		<center>',
-		'		Username: {us:s}<br>',
-		'		Password: {pw:s}<br>',
-		'		<br><br>',
-		'		<h3>You can use the wifi network now!<h3>',
-		'		<p>Client IP address: {ip:s}</p>',
-		'		<p>Error msg: {er:s}</p>',
-		'		</center>',
-		'       </body>',
-		'</html>' ]
-	html = '\n'.join(lines).format(us=str(username),
-		pw=str(password), ip=str(environ['REMOTE_ADDR']), er=str(error_msg))
-
-
-	response_header = [('Content-type', 'text/html')]
-	start_response(status, response_header)
-	return [bytes(html, 'utf-8')]
-
+	# Allow device to internet.
+	return AllowDeviceToInternet(TICKETNUMBER, SEATNUMBER, IP, start_response)
 
 if __name__ == "__main__":
 	application({}, print)
