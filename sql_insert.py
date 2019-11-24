@@ -15,13 +15,13 @@ insertQuery = "INSERT INTO Passengers"
 query = insertQuery + " VALUES ('22', 'Gregory', 'House', '22A');"
 cursor.execute(query)
 
-query = insertQuery + " VALUES ('23', 'Richard', 'Hammond', '22B');"
+query = insertQuery + " VALUES ('23', 'Sherlock', 'Holmes', '22B');"
 cursor.execute(query)
 
 query = insertQuery + " VALUES ('24', 'Kevin', 'Mitnick', '22C');"
 cursor.execute(query)
 
-query = insertQuery + " VALUES ('25', 'Sherlock', 'Holmes', '22D');"
+query = insertQuery + " VALUES ('25', 'Richard', 'Hammond', '22D');"
 cursor.execute(query)
 
 query = insertQuery + " VALUES ('26', 'Marcus', 'Holloway', '22E');"
