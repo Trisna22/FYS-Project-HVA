@@ -26,6 +26,6 @@ cursor.execute(query)
 # if certain devices already are logged in.
 print("[*] Create table for logged in devices.")
 query = "CREATE TABLE LoggedIn (ipAddress VARCHAR(15) NOT NULL, macAddress VARCHAR(20) NOT NULL, "
-query += "ticketNumber VARCHAR(20) NOT NULL, seatNumber VARCHAR(15) NOT NULL,  firstName VARCHAR(20) NOT NULL,"
+query += "ticketNumber VARCHAR(20) NOT NULL, seatNumber VARCHAR(15) NOT NULL,  lastName VARCHAR(20) NOT NULL,"
 query += "CONSTRAINT pkTicketNumber PRIMARY KEY(ticketNumber));"
 cursor.execute(query)
