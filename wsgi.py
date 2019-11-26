@@ -43,7 +43,7 @@ def run_debug_code(environ, start_response):
 def checkStringValue(string):
 
 	# Set up a list with forbidden characters.
-	forbiddenChars = ['#', '\'', '\\', '"', '~', '/', '>', '@',
+	forbiddenChars = ['#', '\'', '\\', '"', '~', '/', '>', '@', '\n', '\t', '-', '=',
 			'<', '{', '}', ';', ':', '(', ')', '?', '*', '$', '!', '|']
 
 	# Compare every character of string with the list.
@@ -80,41 +80,42 @@ def checkCredentials(TICKETNUMBER, SEATNUMBER):
 	result = cursor.fetchall()
 	return result[0][0]
 
+# Retrieves the MAC address from the IP in the ARP table.
+def GetMACFromIP(IP):
+	MAC = os.popen("arp -n | grep \"" + IP + "\" | awk \'{print $3}\'").read()
+	return MAC[:-1]
+
 # Adds current connected device to database.
 def UpdateLoggedInDatabase(TICKETNUMBER, SEATNUMBER, IP, MAC, LASTNAME):
 
 	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
 	cursor = connection.cursor()
 
+
 	# First check if the device is already logged in.
 	cursor.execute('SELECT EXISTS ( SELECT * FROM LoggedIn WHERE ipAddress = \'' + 
 		IP + '\' OR macAddress = \'' + MAC + '\');')
 	result = cursor.fetchall()
 	if result[0][0] == True:
-		return False
+		return 1
+
+	# Than check if the ticketnumber is already logged in.
+	cursor.execute('SELECT EXISTS ( SELECT * FROM LoggedIn WHERE ticketNumber = \'' +
+		TICKETNUMBER + '\' OR lastName = \'' + LASTNAME + '\');')
+	result = cursor.fetchall()
+	if result[0][0] == True:
+		return 2
 
 	insertQuery = "INSERT INTO LoggedIn VALUES (\'" + IP + "\', \'" + MAC + "\', \'" + TICKETNUMBER
 	insertQuery += "\', \'" + SEATNUMBER + "\', \'" + LASTNAME + "\'); "
 	cursor.execute(insertQuery)
 
 	connection.commit()
-	return True
+	return 0
 
 # Prints out the page for wrong username/password.
 def incorrect_password(environ, start_response):
 	status = "307 Temporary Redirect"
-
-	"""
-	lines = [
-		'<html>',
-		'       <body>',
-		'               <title>Wrong credentials</title>',
-		'		<h3>Wrong username/password!</h3>',
-		'		<h4>Dummy login page</h4>',
-		'       </body>',
-		'</html>' ]
-	"""
-
 	html = '\n'
 
 	response_header = [('Content-type', 'text/html'), ('Location', '/wrong_password.html')]
@@ -155,11 +156,12 @@ def AllowDeviceToInternet(TICKETNUMBER, SEATNUMBER, IP, start_response):
 	LASTNAME = result[0][0].encode('ascii').decode('utf-8')
 
 	# Retrieve MAC address from device.
-	MAC = "AA:BB:CC:DD:AA:BB"
+	MAC = GetMACFromIP(IP)
 
-	# Check if we already are logged in
-	if UpdateLoggedInDatabase(TICKETNUMBER, SEATNUMBER, IP, MAC, LASTNAME) == False:
+	statusCode = UpdateLoggedInDatabase(TICKETNUMBER, SEATNUMBER, IP, MAC, LASTNAME)
 
+	# Check if the device is already logged in.
+	if statusCode == 1:
 		status = "200 OK"
 		lines = [
 			'<html>',
@@ -177,15 +179,42 @@ def AllowDeviceToInternet(TICKETNUMBER, SEATNUMBER, IP, start_response):
 		start_response(status, response_header)
 		return [bytes(html, 'utf-8')]
 
-	else:
+	# Check if the ticketnumber is already logged in.
+	elif statusCode == 2:
+
+		status = "307 Temporary Redirect"
+		lines = [
+			'<html>',
+			'	<body>',
+			'		<title>Ticket already logged in!</title>',
+			'		<h1>Ticket is already logged in!</title>',
+			'	</body>',
+			'</html>' ]
+
+		html = '\n'.join(lines)
+		response_header = [('Content-type', 'text/html'), ('Location', '/ticket_already_loggedin.html')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
+
+	# If the device and ticketnumber isn't yet logged in.
+	elif statusCode == 0:
+
+		# Delete the redirection to captive portal.
+		redirect_commands = ['sudo', 'iptables', '-t', 'nat', '-D', 'PREROUTING', '-s', IP,
+			'-p', 'tcp', '--dport', '80', '-j', 'DNAT', '--to-destination', '192.168.22.1:80' ]
+		subprocess.Popen(redirect_commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+		redirect_commands2 = ['sudo', 'iptables', '-t', 'nat', '-D', 'PREROUTING', '-s', IP,
+			'-p', 'tcp', '--dport', '443', '-j', 'DNAT', '--to-destination', '192.168.22.1:443' ]
+		subprocess.Popen(redirect_commands2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
 		# Using subprocess module to create a system command with iptables.
-		command = ['sudo', 'iptables', '-t', 'nat', '-A', 'POSTROUTING', '-m', 'mac', '--mac-source', MAC, '-o', 'eth0', '-j', 'MASQUERADE']
+		# MOET NOG VERANDEREN NAAR MAC!
+		command = ['sudo', 'iptables', '-t', 'nat', '-A', 'POSTROUTING', '--source', IP, '-o', 'eth0', '-j', 'MASQUERADE']
 		p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		error_msg = p.communicate()
 
-		# Our response.
 		status = "200 OK"
-
 		lines = [
 			'<html>',
 			'       <body>',
@@ -198,6 +227,21 @@ def AllowDeviceToInternet(TICKETNUMBER, SEATNUMBER, IP, start_response):
 			'       </body>',
 			'</html>' ]
 		html = '\n'.join(lines).format(fr=FIRSTNAME, ln=LASTNAME, ip=IP, mc=MAC, er=str(error_msg))
+
+		response_header = [('Content-type', 'text/html')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
+
+	# If the status code is something else than we expected.
+	else:
+		status = "200 OK"
+		lines = [
+			'<html>',
+			'<body>',
+			'	<h1>Unknown status code occured: {cd:s}',
+			'</body>',
+			'</html>' ]
+		html = '\n'.join(lines).format(cd=str(statusCode))
 
 		response_header = [('Content-type', 'text/html')]
 		start_response(status, response_header)

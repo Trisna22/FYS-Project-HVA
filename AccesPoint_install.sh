@@ -52,7 +52,7 @@ echo
 echo
 
 echo "[*] Refreshing ssl private certificate files."
-openssl req -new -x509 -days 365 -keyout /etc/apache2/ssl/key/FYS_CERTIFICATE.key -out /etc/apache2/ssl/crt/FYS_CERTIFICATE.crt -nodes -subj  '/O=Wifi in plane/OU=Official Corendon Login page/CN=corendon.com'
+openssl req -new -x509 -days 365 -keyout /etc/apache2/ssl/key/FYS.key -out /etc/apache2/ssl/crt/FYS.crt -nodes -subj  '/O=Wifi in plane/OU=Official Corendon Login page/CN=corendon.com'
 
 echo "[*] Flushing all previous iptables settings."
 iptables --flush
@@ -66,8 +66,7 @@ iptables -A INPUT -p tcp --source 127.0.0.1 --destination 127.0.0.1 -j ACCEPT
 iptables -A INPUT -p tcp --destination 10.42.0.170 -j ACCEPT
 
 echo "[*] Redirecting devices to login page."
-iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination localhost:80
-iptables -t nat -A PREROUTING -p tcp --dport 443 -j DNAT --to-destination localhost:80
+python redirect_script.py
 
 # Delete if not debugging on windows......
 echo "[*] Debug IP priveledges for windows."
