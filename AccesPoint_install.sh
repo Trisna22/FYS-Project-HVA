@@ -82,6 +82,10 @@ python sql_create.py
 echo "[*] Executing python script that will insert passenger data."
 python sql_insert.py
 
+echo "[*] Restarting apache 2 service."
+service apache2 restart
+
 echo
 echo "Wifi access point succesfully installed and ready for use."
+
 
