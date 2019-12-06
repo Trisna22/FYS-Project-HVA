@@ -52,7 +52,7 @@ echo
 echo
 
 echo "[*] Refreshing ssl private certificate files."
-openssl req -new -x509 -days 365 -keyout /etc/apache2/ssl/key/FYS.key -out /etc/apache2/ssl/crt/FYS.crt -nodes -subj  '/O=Wifi in plane/OU=Official Corendon Login page/CN=corendon.com'
+#openssl req -new -x509 -days 365 -keyout /etc/apache2/ssl/key/FYS.key -out /etc/apache2/ssl/crt/FYS.crt -nodes -subj  '/O=Wifi in plane/OU=Official Corendon Login page/CN=corendon.com'
 
 echo "[*] Flushing all previous iptables settings."
 iptables --flush
