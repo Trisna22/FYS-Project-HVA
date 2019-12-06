@@ -60,6 +60,8 @@ def sendStaticFile(environ, start_response):
 			response_header = [('Content-type', 'image/jpg')]
 		elif requestFile.find('.png') != -1:
 			response_header = [('Content-type', 'image/png')]
+		elif requestFile.find('.gif') != -1:
+			response_header = [('Content-type', 'image/gif')]
 		else:
 			response_header = [('Content-type', 'text/html')]
 
@@ -71,7 +73,7 @@ def application(environ, start_response):
 	status = "200 OK"
 	html = "<html>\n"
 	html += '<head>\n'
-	html += '<link rel="stylesheet" type="text/css" href="static/style.css" />\n'
+	html += '<link rel="stylesheet" type="text/css" href="/static/style.css" />\n'
 	html += '</head>\n'
 	html += "<body>\n"
 
@@ -80,12 +82,13 @@ def application(environ, start_response):
 
 	if environ['REQUEST_METHOD'] == 'GET':
 
+		html += '<center style="margin-top: 200px">'
 		html += '<form method="post" action="login">'
-		html += '<input type="text" name="TICKETNUMBER"/><br>'
-		html += '<input type="text" name="SEATNUMBER"/><br>'
+		html += '<input type="text" name="TICKETNUMBER" placeholder="TicketNumber"/><br>'
+		html += '<input type="text" name="SEATNUMBER" placeholder="SeatNumber"/><br>'
 		html += '<input type="submit" value="submit"/>'
-		html += '<script src="static/script.js" />'
 		html += '</form>'
+		html += '</center>'
 		html += "<body></html>"
 
 	# Als we een post request opvangen, we laten de login over aan de login.py script.
