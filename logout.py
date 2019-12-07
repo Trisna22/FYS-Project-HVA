@@ -53,7 +53,7 @@ def updateLoginStatus(IP, MAC):
 	subprocess.Popen(redirect_commands2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 	# Ontzeg internet voor het IP adres. (POSTROUTING)
-	command = ['sudo', 'iptables', '-t', 'nat', '-A', 'POSTROUTING', '--source', IP,
+	command = ['sudo', 'iptables', '-t', 'nat', '-D', 'POSTROUTING', '--source', IP,
 		'-o', 'eth0', '-j', 'MASQUERADE']
 	subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 

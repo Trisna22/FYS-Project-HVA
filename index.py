@@ -1,8 +1,9 @@
 import urllib.parse as urlparse
+import mysql.connector as mariaDB
 import os
 
 import login	# Staat in de /usr/lib/python3.7/ folder.
-
+import logout	# Staat in de /usr/lib/python3.7/ folder.
 
 # Verstuurt de benodigde bestanden voor de html code.
 def sendStaticFile(environ, start_response):
@@ -68,34 +69,92 @@ def sendStaticFile(environ, start_response):
 		start_response(status, response_header)
 		return [static]
 
+# Als apparaat al ingelogd html code.
+def deviceLoggedInHTML(environ, start_response):
+
+	# Verkrijg IP en MAC
+	IP = environ['REMOTE_ADDR']
+	MAC = login.GetMacFromIP(IP)
+
+	# Verkrijg gebruikersnaam en wachtwoord.
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	# DB: lastName
+	cursor.execute('SELECT lastName FROM LoggedIn WHERE macAddress = \'' + MAC +
+		'\' AND ipAddress = \'' + IP + '\';')
+	result = cursor.fetchall()
+	lastName = result[0][0].encode('ascii').decode('utf-8')
+
+	# DB: ticketNumber
+	cursor.execute('SELECT ticketNumber FROM LoggedIn WHERE macAddress = \'' + MAC +
+		'\' AND ipAddress = \'' + IP + '\';')
+	result = cursor.fetchall()
+	ticketNumber = result[0][0].encode('ascii').decode('utf-8')
+
+	# DB: firstName
+	cursor.execute('SELECT firstName FROM Passengers WHERE lastName = \'' + lastName +
+		'\' AND ticketNumber = \'' + ticketNumber + '\';')
+	result = cursor.fetchall()
+	firstName = result[0][0].encode('ascii').decode('utf-8')
+
+	html = ""
+	file = open('/var/www/FYS/encrypted/loggedin.html', 'r')
+	for i in file:
+		html += i
+
+	html = html.replace('{{firstName}}', firstName)
+	html = html.replace('{{lastName}}', lastName)
+	html = html.replace('{{MAC}}', MAC)
+	html = html.replace('{{IP}}', IP)
+
+	file.close()
+	status = "200 OK"
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
+
+
+def deviceNotLoggedInHTML(environ, start_response):
+	status  = '200 OK'
+	html = '<html>'
+	html += '<head><link rel="stylesheet" type="text/css" href="/static/style.css" >'
+	html += '<center style="margin-top: 200px">'
+	html += '<form method="post" action="login">'
+	html += '<input type="text" name="TICKETNUMBER" placeholder="TicketNumber"/><br>'
+	html += '<input type="text" name="SEATNUMBER" placeholder="SeatNumber"/><br>'
+	html += '<input type="submit" value="submit"/>'
+	html += '</form>'
+	html += '</center>'
+	html += "<body></html>"
+
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
 
 def application(environ, start_response):
+
 	status = "200 OK"
-	html = "<html>\n"
-	html += '<head>\n'
-	html += '<link rel="stylesheet" type="text/css" href="/static/style.css" />\n'
-	html += '</head>\n'
-	html += "<body>\n"
 
 	if str(environ['REQUEST_URI']).find('/static/') != -1:
 		return sendStaticFile(environ, start_response)
 
 	if environ['REQUEST_METHOD'] == 'GET':
 
-		html += '<center style="margin-top: 200px">'
-		html += '<form method="post" action="login">'
-		html += '<input type="text" name="TICKETNUMBER" placeholder="TicketNumber"/><br>'
-		html += '<input type="text" name="SEATNUMBER" placeholder="SeatNumber"/><br>'
-		html += '<input type="submit" value="submit"/>'
-		html += '</form>'
-		html += '</center>'
-		html += "<body></html>"
+		if login.checkIfDeviceLoggedIn(environ) == True:
+			return deviceLoggedInHTML(environ, start_response)
+		else:
+			return deviceNotLoggedInHTML(environ, start_response)
 
 	# Als we een post request opvangen, we laten de login over aan de login.py script.
 	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'] == '/login':
-
 		return login.doLogin(environ, start_response)
 
+	# Als we een post request opvangen, we laten de logout over aan de logout.py script.
+	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'] == '/logout':
+		return logout.doLogout(environ, start_response)
+
+	# Alle overige methodes negeren.
 	else:
 		status = "405 Method Not Allowed"
 		html += "<html><body><h1>Illegal HTTP method!</h1></body></html>"

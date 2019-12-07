@@ -92,15 +92,22 @@ def correct_login(environ, start_response, ticketNumber, seatNumber, IP, MAC):
 
 	# HTML content.
 	status = '200 OK'
-	html = '<html>'
-	html += '<body>'
-	html += '<h1>You have succesfully logged in!</h1>'
-	html += '<br><br><br>'
-	html += 'Dear {{firstName}} {{lastName}}, <br>'
-	html += 'MAC: {{MAC}}<br>'
-	html += 'IP Address: {{IP}}<br>'
-	html += '</body>'
-	html += '</html>'
+	html = ""
+
+	file = open("/var/www/FYS/encrypted/loggedin.html", "r")
+	for i in file:
+		html += i
+	file.close()
+
+	#html += '<body>'
+	#html += '<h1>You have succesfully logged in!</h1>'
+	#html += '<br><br><br>'
+	#html += 'Dear {{firstName}} {{lastName}}, <br>'
+	#html += 'MAC: {{MAC}}<br>'
+	#html += 'IP Address: {{IP}}<br>'
+	#html += '<form method="post" action="/logout"> <button type="submit">Logout</button></form>'
+	#html += '</body>'
+	#html += '</html>'
 
 
 	html = html.replace('{{firstName}}', firstName)
