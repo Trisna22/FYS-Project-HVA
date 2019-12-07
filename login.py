@@ -94,27 +94,49 @@ def correct_login(environ, start_response, ticketNumber, seatNumber, IP, MAC):
 	status = '200 OK'
 	html = ""
 
+	# HTML pagina om te versturen.
 	file = open("/var/www/FYS/encrypted/loggedin.html", "r")
 	for i in file:
 		html += i
 	file.close()
-
-	#html += '<body>'
-	#html += '<h1>You have succesfully logged in!</h1>'
-	#html += '<br><br><br>'
-	#html += 'Dear {{firstName}} {{lastName}}, <br>'
-	#html += 'MAC: {{MAC}}<br>'
-	#html += 'IP Address: {{IP}}<br>'
-	#html += '<form method="post" action="/logout"> <button type="submit">Logout</button></form>'
-	#html += '</body>'
-	#html += '</html>'
-
 
 	html = html.replace('{{firstName}}', firstName)
 	html = html.replace('{{lastName}}', lastName)
 	html = html.replace('{{MAC}}', MAC)
 	html = html.replace('{{IP}}', IP)
 
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
+
+# Als apparaat al ingelogd is.
+def already_loggedin(environ, start_response, ticketNumber, seatNumber, IP, MAC):
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	# Verkrijg de firstName van de databank ovor onze html content.
+	cursor.execute('SELECT firstName FROM Passengers WHERE ticketNumber = ' + ticketNumber + ';')
+	result = cursor.fetchall()
+	firstName = result[0][0].encode('ascii').decode('utf-8')
+
+	# Verkrijg nog de laatste vereiste variabele lastName.
+	cursor.execute('SELECT lastName FROM Passengers WHERE ticketNumber = ' + ticketNumber + ';')
+	result = cursor.fetchall()
+	lastName = result[0][0].encode('ascii').decode('utf-8')
+
+	# HTML pagina om te versturen.
+	html = ""
+	file = open("/var/www/FYS/encrypted/loggedin.html", "r")
+	for i in file:
+		html += i
+	file.close()
+
+	html = html.replace('{{firstName}}', firstName)
+	html = html.replace('{{lastName}}', lastName)
+	html = html.replace('{{MAC}}', MAC)
+	html = html.replace('{{IP}}', IP)
+
+	status = "200 OK"
 	response_header = [('Content-type', 'text/html')]
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
@@ -220,6 +242,10 @@ def doLogin(environ, start_response):
 		return wrong_login(environ, start_response)
 	if checkStringValue(seatNumber) == False:
 		return wrong_login(environ, start_response)
+
+	# Als het apparaat de POST request nog een keer stuurt, maar al ingelogd is.
+	if checkIfDeviceLoggedIn(environ) == True:
+		return already_loggedin(environ, start_response, ticketNumber, seatNumber, IP, MAC)
 
 	# Checken of de ticket en stoelnummer al gebruikt zijn om in te loggen.
 	if checkIfTicketLoggedIn(ticketNumber, seatNumber) == True:
