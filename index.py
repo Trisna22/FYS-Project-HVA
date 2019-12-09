@@ -9,8 +9,18 @@ import logout	# Staat in de /usr/lib/python3.7/ folder.
 def sendStaticFile(environ, start_response):
 	status = "200 OK"
 
+
 	prePath = '/var/www/FYS/encrypted/'
 	requestFile = prePath + environ['REQUEST_URI']
+
+	# Beveiliging voor string escaping.
+	if requestFile.find("..") != -1:
+		status = "404 Not Found"
+		html = "<html><body><h1>URL not found!</h1></body></html>"
+
+		response_header = [('Content-type', 'text/html')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
 
 	# Kijken of het bestand bestaat op de schijf.
 	if os.path.isfile(requestFile) == False:
