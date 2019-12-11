@@ -1,9 +1,17 @@
+#       Name:                           index.py (HTTP response in python)
+#       Project:                        Fasten Your Seatbelts (FYS)
+#       Creation date:                  4-12-2019
+#       Author:                         Trisna Quebe ic106-2
+#       Taken from older version:       wsgi.py by Trisna
+
 import urllib.parse as urlparse
 import mysql.connector as mariaDB
 import os
 
-import login	# Staat in de /usr/lib/python3.7/ folder.
-import logout	# Staat in de /usr/lib/python3.7/ folder.
+# De onderstaande modules staan in de map /usr/lib/python3.7/
+import login	# Module om gebruikers in te loggen.
+import logout	# Module om gebruikers uit te loggen.
+import crew	# Module om crew login panel te verwerken.
 
 # Verstuurt de benodigde bestanden voor de html code.
 def sendStaticFile(environ, start_response):
@@ -36,7 +44,7 @@ def sendStaticFile(environ, start_response):
 		file = open(requestFile, 'r')
 		lines = []
 		for line in file:
-			static = lines.append(line)
+			static = lines.append(line[:-1])
 		file.close()
 
 		html = '\n'.join(lines)
@@ -111,7 +119,7 @@ def deviceLoggedInHTML(environ, start_response):
 	html = ""
 	file = open('/var/www/FYS/encrypted/loggedin.html', 'r')
 	for i in file:
-		html += i
+		html += i[:-1]
 
 	html = html.replace('{{firstName}}', firstName)
 	html = html.replace('{{lastName}}', lastName)
@@ -124,35 +132,49 @@ def deviceLoggedInHTML(environ, start_response):
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
 
-
+# De standaard pagina die de client gaat als hij naar de Captive Portal gaat.
 def deviceNotLoggedInHTML(environ, start_response):
 	status  = '200 OK'
-	html = '<html>'
-	html += '<head><link rel="stylesheet" type="text/css" href="/static/style.css" >'
-	html += '<center style="margin-top: 200px">'
-	html += '<form method="post" action="login">'
-	html += '<input type="text" name="TICKETNUMBER" placeholder="TicketNumber"/><br>'
-	html += '<input type="text" name="SEATNUMBER" placeholder="SeatNumber"/><br>'
-	html += '<input type="submit" value="submit"/>'
-	html += '</form>'
-	html += '</center>'
-	html += "<body></html>"
+
+	# Pad naar standaard html file.
+	htmlPath = '/var/www/FYS/encrypted/login.html'
+
+	# Opent bestand voor de html code en leest het uit.
+	file = open(htmlPath, 'r')
+	lines = []
+	for line in file:
+		static = lines.append(line[:-1])
+	file.close()
+
+	html = '\n'.join(lines)
 
 	response_header = [('Content-type', 'text/html')]
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
 
+# De main functie van het hele programma.
 def application(environ, start_response):
 
 	status = "200 OK"
 
+	# Als de browsers vragen om fotos of css/javascript files.
 	if str(environ['REQUEST_URI']).find('/static/') != -1:
 		return sendStaticFile(environ, start_response)
 
+	# Elke GET request wordt opgevangen en verwerkt.
 	if environ['REQUEST_METHOD'] == 'GET':
 
+		if environ['REQUEST_URI'].find('/crew/static/') != -1:
+			return crew.sendStaticFiles(environ, start_response)
+
+		# Verstuurt de crew HTML code.
+		if environ['REQUEST_URI'] == '/crew':
+			return crew.sendCrewPage(environ, start_response)
+
+		# Als het apparaat ingelogd is, doorverwijzen naar loggedIn HTML.
 		if login.checkIfDeviceLoggedIn(environ) == True:
 			return deviceLoggedInHTML(environ, start_response)
+		# Als het apparaat nog niet ingelogd is, doorverwijzen naar nog niet ingelogd HTML.
 		else:
 			return deviceNotLoggedInHTML(environ, start_response)
 
@@ -164,17 +186,20 @@ def application(environ, start_response):
 	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'] == '/logout':
 		return logout.doLogout(environ, start_response)
 
-	# Alle overige methodes negeren.
+	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'].find('/crew') != -1:
+		return crew.handlePOSTrequest(environ, start_response)
+
+	# Alle overige HTTP methodes negeren.
 	else:
 		status = "405 Method Not Allowed"
-		html += "<html><body><h1>Illegal HTTP method!</h1></body></html>"
+		html = "<html><body><h1>Illegal HTTP method!</h1></body></html>"
+
+		response_header = [('Content-type', 'text/html')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
 
 
-	response_header = [('Content-type', 'text/html')]
-	start_response(status, response_header)
-	return [bytes(html, 'utf-8')]
-
-
+# Het allereerste ding waar de python interpreter naar kijkt.
 if __name__ == "__main__":
 	application({}, print)
 
