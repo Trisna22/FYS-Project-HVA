@@ -82,6 +82,9 @@ python sql_create.py
 echo "[*] Executing python script that will insert passenger data."
 python sql_insert.py
 
+echo "[*] Executing python script that will insert crew login data."
+python sql_crew.py
+
 echo "[*] Restarting apache 2 service."
 service apache2 restart
 

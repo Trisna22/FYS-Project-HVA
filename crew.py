@@ -4,8 +4,14 @@
 #       Author:                         Trisna Quebe ic106-2
 #       Taken from older version:       wsgi.py by Trisna
 
+import mysql.connector as mariaDB
+import urllib.parse as urlparse
+import os
+import subprocess
+import hashlib
+
 # De standaard pagina die de crew krijgt bij een GET request.
-def sendCrewPage(environ, start_response):
+def sendCrewPage(environ, start_response, triedAlready = False):
 	prePath = '/var/www/FYS/encrypted/crew/index.html'
 
 	status = "200 OK"
@@ -15,6 +21,10 @@ def sendCrewPage(environ, start_response):
 	for line in file:
 		html += line[:-1]
 	file.close()
+
+	# Kijken if gebruiker al eerder heeft ingelogd.
+	if triedAlready == True:
+		html = html.replace("hidden", "")
 
 	response_header = [('Content-type', 'text/html')]
 	start_response(status, response_header)
@@ -90,12 +100,74 @@ def sendStaticFiles(environ, start_response):
 		start_response(status, response_header)
 		return [static]
 
+# Controleert of een string geen code of string escaping bevat.
+def checkStringValue(string):
+        # Set up a list with forbidden characters.
+	forbiddenChars = ['#', '\'', '\\', '"', '~', '/', '>', '@', '\n', '\t', '-', '=',
+		'<', '{', '}', ';', ':', '(', ')', '?', '*', '$', '!', '|', '*']
+
+        # Vergelijk elke character van de string met de verboden lijst.
+	for characterFromString in string:
+		for charFromForbiddenList in forbiddenChars:
+			if characterFromString == charFromForbiddenList:
+				return False
+
+	# Kijkt of de ASCII waarden tussen de 0-9, a-z en A-Z liggen.
+	for characterFromString in string:
+		if ord(characterFromString) < 48 or ord(characterFromString) > 122:
+			return False
+
+	# Als de string veilig is return waar.
+	return True
+
+# Checkt of de gebruikersnaam en wachtwoord klopt.
+def checkLogin(username, password):
+
+	# Connectie maken met databank en inlog checken.
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	# Hash het wachtwoord om te vergelijken. We gebruiken MD5.
+	# De MD5 hash is gesalted, zodat het moeilijker te kraken is.
+	saltedPassword = "*///CaptP_" + password + "_CaptP*///"
+
+	hashObject = hashlib.md5(saltedPassword.encode())
+	hashCompare = hashObject.hexdigest()
+
+	# SQL query om te checken.
+	cursor.execute('SELECT EXISTS ( SELECT * FROM CrewLogin WHERE username = \'' + username +
+		'\' AND password = \'' + hashCompare + '\');')
+
+	result = cursor.fetchall()
+	return result[0][0]
+
 # Deze functie behandelt alle POST requests naar /crew.
 def handlePOSTrequest(environ, start_response):
-		status = "404 Not Found"
-		html = "<html><body><h1>URL not found!</h1></body></html>"
 
-		response_header = [('Content-type', 'text/html')]
-		start_response(status, response_header)
-		return [bytes(html, 'utf-8')]
+	# Verkrijg externe variabelen en kijk of ze veilig zijn.
+	s = environ['wsgi.input'].read().decode()
+	params = urlparse.parse_qs(s)
+	userName = params.get('CREW_USERNAME', [''])[0]
+	passWord = params.get('CREW_PASSWORD', [''])[0]
+
+	# Input validatie van de variabelen.
+	if checkStringValue(userName) == False:
+		return sendCrewPage(environ, start_response, True)
+	if checkStringValue(passWord) == False:
+		return sendCrewPage(environ, start_response, True)
+
+	# Inlog checken.
+	if checkLogin(userName, passWord) == False:
+		return sendCrewPage(environ, start_response, True)
+
+	# Kijken of inloggen werkt.
+	html = "<html><body>"
+	html += "USERNAME: " + userName + "<br>"
+	html += "PASSWORD: " + passWord + "<br>"
+	html += "Succesvol ingelogd!</body></html>"
+	status = "200 OK"
+
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
 
