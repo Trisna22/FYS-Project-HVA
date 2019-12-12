@@ -17,7 +17,7 @@ def wrong_login(environ, start_response):
 	lines = []
 	file = open('/var/www/FYS/encrypted/wrong_login.html', 'r')
 	for i in file:
-		lines.append(str(i))
+		lines.append(i[:-1])
 	file.close()
 
 	html = '\n'.join(lines)
@@ -34,7 +34,7 @@ def ticket_already_used(environ, start_response):
 	lines = []
 	file = open('/var/www/FYS/encrypted/ticket_already_used.html')
 	for i in file:
-		lines.append(str(i))
+		lines.append(i[:-1])
 	file.close()
 
 	html = '\n'.join(lines)
@@ -60,7 +60,7 @@ def updateLoggedInDatabase(IP, MAC, ticketNumber, seatNumber, lastName):
 	# Als we klaar zijn met de database, moeten we de IPtables ook configureren,
 	# dat het IP address internet mag gebruiken, en de PREROUTING uitgezet.
 	redirect_commands = ['sudo', 'iptables', '-t', 'nat', '-D', 'PREROUTING', '-s', IP,
-		'-p', 'tcp', '--dport', '80', '-j', 'DNAT', '--to-destination', '192.168.22.1:80']
+		'-p', 'tcp', '--dport', '80', '-j', 'DNAT', '--to-destination', '']
 	subprocess.Popen(redirect_commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 	redirect_commands2 = ['sudo', 'iptables', '-t', 'nat', '-D', 'PREROUTING', '-s', IP,
@@ -97,7 +97,7 @@ def correct_login(environ, start_response, ticketNumber, seatNumber, IP, MAC):
 	# HTML pagina om te versturen.
 	file = open("/var/www/FYS/encrypted/loggedin.html", "r")
 	for i in file:
-		html += i
+		html += i[:-1]
 	file.close()
 
 	html = html.replace('{{firstName}}', firstName)
@@ -128,7 +128,7 @@ def already_loggedin(environ, start_response, ticketNumber, seatNumber, IP, MAC)
 	html = ""
 	file = open("/var/www/FYS/encrypted/loggedin.html", "r")
 	for i in file:
-		html += i
+		html += i[:-1]
 	file.close()
 
 	html = html.replace('{{firstName}}', firstName)
@@ -256,3 +256,4 @@ def doLogin(environ, start_response):
 		return wrong_login(environ, start_response)
 	else:
 		return correct_login(environ, start_response, ticketNumber, seatNumber, IP, MAC)
+

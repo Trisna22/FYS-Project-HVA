@@ -78,9 +78,9 @@ def doLogout(environ, start_response):
 
 	# Onze html response.
 	html = '<html><body><h1>Succesfully logged out!</h1><br>'
-	html += '<a href="/">Klik hier om weer in te loggen</a></body></html>'
+	html += '<a href="/">Click here to go to the login page!</a></body></html>'
 
-	status = '200 OK'
-	response_header = [('Content-type', 'text/html')]
+	status = '301 Moved Permanently'
+	response_header = [('Content-type', 'text/html', 'Location', '/')]
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]

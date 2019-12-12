@@ -9,9 +9,18 @@ import urllib.parse as urlparse
 import os
 import subprocess
 import hashlib
+import datetime
+from datetime import timedelta
 
 # De standaard pagina die de crew krijgt bij een GET request.
 def sendCrewPage(environ, start_response, triedAlready = False):
+
+	# Kijken of de sessie van de device al bestond.
+	IP = environ['REMOTE_ADDR']
+	MAC = GetMacFromIP(IP)
+	if checkIfSessionExists(IP, MAC) == True:
+		return sendSessionPage(IP, MAC, environ, start_response)
+
 	prePath = '/var/www/FYS/encrypted/crew/index.html'
 
 	status = "200 OK"
@@ -21,6 +30,8 @@ def sendCrewPage(environ, start_response, triedAlready = False):
 	for line in file:
 		html += line[:-1]
 	file.close()
+
+	html += "Normal line"
 
 	# Kijken if gebruiker al eerder heeft ingelogd.
 	if triedAlready == True:
@@ -141,8 +152,131 @@ def checkLogin(username, password):
 	result = cursor.fetchall()
 	return result[0][0]
 
+# Verkrijg het MAC address van de bijbehorende IP address.
+def GetMacFromIP(IP):
+	MAC = os.popen("arp -n | grep \"" + IP + "\" | awk \'{print $3}\'").read()
+	return MAC[:-1]
+
+# Verkrijg de gebruikersnaam met de IP en MAC.
+def DBGetUsername(IP, MAC):
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute('SELECT username FROM CrewSessions WHERE ipAddress = \'' + IP + '\' AND ' +
+		'macAddress = \'' + MAC + '\';')
+
+	result = cursor.fetchall()
+	return result[0][0].encode('ascii').decode('utf-8')
+
+# Maakt een nieuwe sessie aan voor een apparaat.
+def createNewSession(IP, MAC, userName, environ, start_response):
+
+	# We geven iedereen 3 minuten speeltijd.
+	timer = timedelta(minutes=3)
+	time = datetime.datetime.now() + timer
+
+	# De tijd omzetten in een SQL acceptabele string.
+	sqlTime = "{:%y-%m-%d %H:%M:%S}".format(time)
+
+	# Update de databank met IP en MAC.
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute("INSERT INTO CrewSessions VALUES ('" + IP + "', '" + MAC + "', '" + userName
+		+ "', '" + sqlTime + "');")
+
+	connection.commit()
+
+	return sendSessionPage(IP, MAC, environ, start_response)
+
+
+# Kijkt of de sessie op de apparaat al bestaat.
+def checkIfSessionExists(IP, MAC):
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	# Kijk of de IP en MAC in de databank bestaat.
+	cursor.execute('SELECT EXISTS ( SELECT * FROM CrewSessions WHERE ipAddress = \'' + IP +
+		'\' AND macAddress = \'' + MAC + '\');')
+
+	result = cursor.fetchall()
+	if result[0][0] == False:
+		return False
+
+	# Kijk of de sessie nog niet verlopen is.
+	# Verkrijg de sessie van de databank.
+	cursor.execute('SELECT sessionExpire FROM CrewSessions WHERE ipAddress' +
+		' = \'' + IP + '\' AND macAddress = \'' + MAC + '\';')
+	result = cursor.fetchall()
+	datetimeExpire = result[0][0]
+
+	# Als de sessie tijd verlopen is.
+	if datetimeExpire <= datetime.datetime.now():
+		return False
+
+	return True
+
+# Verwijdert een sessie uit de databank.
+def deleteSession(IP, MAC, environ, start_response):
+
+	# Kijken of sessie echt bestaat.
+	if checkIfSessionExists(IP, MAC) == False:
+		sendCrewPage(environ, start_response)
+
+	# Sessie verwijderen van databank.
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute("DELETE FROM CrewSessions WHERE ipAddress = '" + IP + "' AND macAddress " +
+	"= '"  + MAC + "';")
+
+	connection.commit()
+
+	html = "<html><body><h1>It's the best if you close the page tab!</h1>"
+	html += '<a href="/crew">Click here to go to the login page!</a></body></html>'
+
+	status = "301 Moved Permanently"
+	response_header = [('Content-type', 'text/html'),('Location', '/crew')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
+
+# Verstuurt opnieuw een sessie page naar de client.
+def sendSessionPage(IP, MAC, environ, start_response):
+
+	# Kijken of inloggen werkt.
+	html = '<html><body>'
+	html += "USERNAME: " + DBGetUsername(IP, MAC) + "<br>"
+	html += "Succesvol ingelogd!<br>"
+	html += '<form action="/crew/logout" method="post"><input type="submit" value="Logout"/></form>'
+	html += '</body></html>'
+	status = "200 OK"
+
+	response_header = [('Content-type', 'text/html')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]
+
+
 # Deze functie behandelt alle POST requests naar /crew.
 def handlePOSTrequest(environ, start_response):
+
+	IP = environ['REMOTE_ADDR']
+	MAC = GetMacFromIP(IP)
+
+	# Kijken of de gebruiker wilt uitloggen of inloggen.
+	if environ['REQUEST_URI'] == '/crew/logout':
+		return deleteSession(IP, MAC, environ, start_response)
+
+	# Alle overige POST request negeren en naar /crew moven.
+	elif environ['REQUEST_URI'] != '/crew':
+		status = "301 Moved Permanently"
+		html = '<html>Moved to <a href="/crew">Click me!</a></html>'
+		response_header = [('Content-type', 'text/html'),('Location', '/crew')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
+
+	# Kijkt of de sessie al gemaakt is.
+	if checkIfSessionExists(IP, MAC) == True:
+		return sendSessionPage(IP, MAC, environ, start_response)
 
 	# Verkrijg externe variabelen en kijk of ze veilig zijn.
 	s = environ['wsgi.input'].read().decode()
@@ -160,14 +294,6 @@ def handlePOSTrequest(environ, start_response):
 	if checkLogin(userName, passWord) == False:
 		return sendCrewPage(environ, start_response, True)
 
-	# Kijken of inloggen werkt.
-	html = "<html><body>"
-	html += "USERNAME: " + userName + "<br>"
-	html += "PASSWORD: " + passWord + "<br>"
-	html += "Succesvol ingelogd!</body></html>"
-	status = "200 OK"
-
-	response_header = [('Content-type', 'text/html')]
-	start_response(status, response_header)
-	return [bytes(html, 'utf-8')]
+	# Maak een nieuwe sessie aan met de huidige client.
+	return createNewSession(IP, MAC, userName, environ, start_response)
 
