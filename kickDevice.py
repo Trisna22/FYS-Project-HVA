@@ -134,7 +134,7 @@ def kick(environ, start_response):
 	if isMACandIPAllowed(IP, MAC) == False:
 		# Doorverwijzen naar / pagina.
 		status = "307 Temporary Redirect"
-		html = '<html><body><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
+		html = '<html><body>Jij hebt geen toestemming!<br><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
 		response_header = [('Content-type', 'text/html'), ('Location', '/')]
 		start_response(status, response_header)
 		return [bytes(html, 'utf-8')]
@@ -149,7 +149,16 @@ def kick(environ, start_response):
 	if index == -1:
 		# Doorverwijzen naar / pagina.
 		status = "307 Temporary Redirect"
-		html = '<html><body><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
+		html = '<html><body>Sorry geen kicken voor jou!<br><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
+		response_header = [('Content-type', 'text/html'), ('Location', '/')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
+
+	# Als de nummer groter is dan er eigenlijk is in de databank.
+	if index >= GetCountOfLoggedInDevices():
+		# Doorverwijzen naar / pagina.
+		status = "307 Temporary Redirect"
+		html = '<html><body>Index out of range!<br><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
 		response_header = [('Content-type', 'text/html'), ('Location', '/')]
 		start_response(status, response_header)
 		return [bytes(html, 'utf-8')]

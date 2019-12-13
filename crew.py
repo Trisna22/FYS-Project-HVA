@@ -270,9 +270,6 @@ def sendSessionPage(IP, MAC, environ, start_response):
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
 
-# De functie die de apparaten uit het netwerk verwijdert.
-#def deleteDeviceFromNetwork(IP, MAC):
-
 # Deze functie behandelt alle POST requests naar /crew.
 def handlePOSTrequest(environ, start_response):
 
