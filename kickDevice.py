@@ -67,7 +67,9 @@ def createHTMLTable():
 		row += '<td>' + str(TICKETNUMBER) + '</td>\n'        # Ticketnummer
 		row += '<td>' + IP + '</td>\n'           # IP van apparaat
 		row += '<td>' + MAC + '</td>\n'          # MAC van apparaat
-		row += '<td><button name="Dev' + str(i)+ '">Delete</button></td>\n' # button
+		row += '<td><form method="post" action="/crew/kick/'
+
+		row += str(i) + '"><button>Delete</button></form></td>\n' # button
 		row += '</tr>\n'        # Einde rij
 		table += row
 
@@ -78,21 +80,107 @@ def GetMacFromIP(IP):
 	MAC = os.popen("arp -n | grep \"" + IP + "\" | awk \'{print $3}\'").read()
 	return MAC[:-1]
 
+# Checkt of het IP en MAC toestemming heeft om apparaten te verwijderen uit het netwerk.
+def isMACandIPAllowed(IP, MAC):
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute('SELECT EXISTS (SELECT * FROM CrewSessions WHERE ipAddress = \'' + IP +
+		'\' AND macAddress = \'' + MAC + '\');')
+	result = cursor.fetchall()
+	return result[0][0]
+
+# Checkt of de string een int bevat en returnt deze.
+def checkStringInt(string):
+
+	for char in string:
+		if ord(char) < 48 or ord(char) > 57:
+			return -1
+
+	return int(char)
+
+# Verkrijg de MAC adres van de index uit de lijst.
+def GetMACFromCount(count):
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute('SELECT * FROM LoggedIn')
+	result = cursor.fetchall()
+
+	# Count = rijnummer
+	# 1 = MAC addressen.
+	return result[count][1]
+
+# Verkrijg de IP adres van de index uit de lijst.
+def GetIPFromCount(count):
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute('SELECT * FROM LoggedIn')
+	result = cursor.fetchall()
+
+	# Count = rijnummer
+	# 0 = IP addressen.
+	return result[count][0]
+
+
 # Kick device off network.
 def kick(environ, start_response):
 
-	IP = environ['REQUEST_URI']
+	IP = environ['REMOTE_ADDR']
 	MAC = GetMacFromIP(IP)
 
-	# Delete device from network.
-	
+	# Checken of de IP en MAC rechten hebben.
+	if isMACandIPAllowed(IP, MAC) == False:
+		# Doorverwijzen naar / pagina.
+		status = "307 Temporary Redirect"
+		html = '<html><body><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
+		response_header = [('Content-type', 'text/html'), ('Location', '/')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
 
-	# Update iptables settings.
+	# Verkrijg de MAC en IP adres die we willen verwijderen.
+	# Deze staat in de URL. (een deel)
+	devPath = environ['REQUEST_URI']
+	number = devPath[11:]
+	index = checkStringInt(number)
 
+	# Als we geen nummer hebben gekregen.
+	if index == -1:
+		# Doorverwijzen naar / pagina.
+		status = "307 Temporary Redirect"
+		html = '<html><body><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
+		response_header = [('Content-type', 'text/html'), ('Location', '/')]
+		start_response(status, response_header)
+		return [bytes(html, 'utf-8')]
 
-	# Redirect to /crew again.
+	MACToDelete = GetMACFromCount(index)
+	IPToDelete = GetIPFromCount(index)
+
+	# Verwijder gegevens uit databank.
+	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
+	cursor = connection.cursor()
+
+	cursor.execute("DELETE FROM LoggedIn WHERE macAddress = '" + MACToDelete + "';")
+	connection.commit()
+
+	# Zet iptables settings terug.
+	redirect_commands = ['sudo', 'iptables', '-t', 'nat', '-A', 'PREROUTING', '-s', IPToDelete,
+		'-p', 'tcp', '--dport', '80', '-j', 'DNAT', '--to-destination', '192.168.22.1:80']
+	subprocess.Popen(redirect_commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+	redirect_commands2 = ['sudo', 'iptables', '-t', 'nat', '-A', 'PREROUTING', '-s', IPToDelete,
+		'-p', 'tcp', '--dport', '443', '-j', 'DNAT', '--to-destination', '192.168.22.1:443']
+	subprocess.Popen(redirect_commands2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+	# Ontzeg internet voor het IP adres. (POSTROUTING)
+	command = ['sudo', 'iptables', '-t', 'nat', '-D', 'POSTROUTING', '--source', IPToDelete,
+		'-o', 'eth0', '-j', 'MASQUERADE']
+	subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+	# Doorverwijzen naar /crew.
 	status = "307 Temporary Redirect"
 	html = '<html><body><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
-	response_header = [('Content-type', 'text/html'), ('Location', '/crew/fuck')]
+	response_header = [('Content-type', 'text/html'), ('Location', '/crew')]
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]

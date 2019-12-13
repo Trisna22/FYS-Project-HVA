@@ -188,7 +188,7 @@ def application(environ, start_response):
 		return logout.doLogout(environ, start_response)
 
 	# Alle POST requests dat wordt gebruikt om mensen te kicken.
-	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'] == '/crew/kick':
+	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'].find('/crew/kick/') != -1:
 		return kickDevice.kick(environ, start_response)
 
 	# Alle overige POST requests met /crew in de query.
