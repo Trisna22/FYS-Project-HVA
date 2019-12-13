@@ -172,7 +172,7 @@ def DBGetUsername(IP, MAC):
 def createNewSession(IP, MAC, userName, environ, start_response):
 
 	# We geven iedereen 3 minuten speeltijd.
-	timer = timedelta(minutes=3)
+	timer = timedelta(minutes=5)
 	time = datetime.datetime.now() + timer
 
 	# De tijd omzetten in een SQL acceptabele string.
@@ -204,17 +204,26 @@ def checkIfSessionExists(IP, MAC):
 		return False
 
 	# Kijk of de sessie nog niet verlopen is.
-	# Verkrijg de sessie van de databank.
+	# Verkrijg alle sessies van de databank.
+	cursor.execute('SELECT COUNT(sessionExpire) FROM CrewSessions WHERE ipAddress' + 
+		' = \'' + IP + '\' AND macAddress = \'' + MAC + '\';')
+	result = cursor.fetchall()
+	countSessions = result[0][0]
+
+	# Verkrijg alle sessies van databank.
 	cursor.execute('SELECT sessionExpire FROM CrewSessions WHERE ipAddress' +
 		' = \'' + IP + '\' AND macAddress = \'' + MAC + '\';')
 	result = cursor.fetchall()
-	datetimeExpire = result[0][0]
 
-	# Als de sessie tijd verlopen is.
-	if datetimeExpire <= datetime.datetime.now():
-		return False
+	# Checken voor elke sessie.
+	for i in range(0, countSessions):
+		datetimeExpire = result[i][0]
 
-	return True
+		# Als de sessie tijd verlopen is.
+		if datetimeExpire > datetime.datetime.now():
+			return True
+
+	return False
 
 # Verwijdert een sessie uit de databank.
 def deleteSession(IP, MAC, environ, start_response):
@@ -253,11 +262,6 @@ def sendSessionPage(IP, MAC, environ, start_response):
 	# Vervang de keywords met gegevens van databank.
 	table = kickDevice.createHTMLTable()
 
-#	table = '<tr><td>'
-#	table += 'Gregory</td><td>House</td><td>22A</td><td>192.168.22.4</td>'
-#	table += '<td>AA:BB:CC:AA:BB:CC</td><td><button name="Dev1">Delete</button></td></tr>'
-#	table += '<tr><td>Marcus</td><td>Holloway</td><td>22C</td><td>192.168.22.88</td>'
-#	table += '<td>DD:BB:DD:AA:DD:CC</td><td><button name="Dev2">Delete</button></td></tr>'
 	html = html.replace("{{TABLE_DEVICES}}", table)
 	html = html.replace("{{USERNAME}}", DBGetUsername(IP, MAC))
 
@@ -268,7 +272,6 @@ def sendSessionPage(IP, MAC, environ, start_response):
 
 # De functie die de apparaten uit het netwerk verwijdert.
 #def deleteDeviceFromNetwork(IP, MAC):
-
 
 # Deze functie behandelt alle POST requests naar /crew.
 def handlePOSTrequest(environ, start_response):

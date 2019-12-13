@@ -12,6 +12,7 @@ import os
 import login	# Module om gebruikers in te loggen.
 import logout	# Module om gebruikers uit te loggen.
 import crew	# Module om crew login panel te verwerken.
+import kickDevice # Module om apparaten uit het netwerk te schoppen.
 
 # Verstuurt de benodigde bestanden voor de html code.
 def sendStaticFile(environ, start_response):
@@ -186,6 +187,11 @@ def application(environ, start_response):
 	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'] == '/logout':
 		return logout.doLogout(environ, start_response)
 
+	# Alle POST requests dat wordt gebruikt om mensen te kicken.
+	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'] == '/crew/kick':
+		return kickDevice.kick(environ, start_response)
+
+	# Alle overige POST requests met /crew in de query.
 	elif environ['REQUEST_METHOD'] == 'POST' and environ['REQUEST_URI'].find('/crew') != -1:
 		return crew.handlePOSTrequest(environ, start_response)
 

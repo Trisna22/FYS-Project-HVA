@@ -5,6 +5,9 @@
 #       Author:                         Trisna Quebe ic106-2
 
 import mysql.connector as mariaDB
+import os
+import subprocess
+import urllib.parse as urlparse
 
 # Verkrijg het aantal rijen in tabel.
 def GetCountOfLoggedInDevices():
@@ -69,3 +72,27 @@ def createHTMLTable():
 		table += row
 
 	return table
+
+# Verkrijg het MAC address van de bijbehorende IP address.
+def GetMacFromIP(IP):
+	MAC = os.popen("arp -n | grep \"" + IP + "\" | awk \'{print $3}\'").read()
+	return MAC[:-1]
+
+# Kick device off network.
+def kick(environ, start_response):
+
+	IP = environ['REQUEST_URI']
+	MAC = GetMacFromIP(IP)
+
+	# Delete device from network.
+	
+
+	# Update iptables settings.
+
+
+	# Redirect to /crew again.
+	status = "307 Temporary Redirect"
+	html = '<html><body><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'
+	response_header = [('Content-type', 'text/html'), ('Location', '/crew/fuck')]
+	start_response(status, response_header)
+	return [bytes(html, 'utf-8')]

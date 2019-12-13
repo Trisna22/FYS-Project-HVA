@@ -60,7 +60,7 @@ def updateLoggedInDatabase(IP, MAC, ticketNumber, seatNumber, lastName):
 	# Als we klaar zijn met de database, moeten we de IPtables ook configureren,
 	# dat het IP address internet mag gebruiken, en de PREROUTING uitgezet.
 	redirect_commands = ['sudo', 'iptables', '-t', 'nat', '-D', 'PREROUTING', '-s', IP,
-		'-p', 'tcp', '--dport', '80', '-j', 'DNAT', '--to-destination', '']
+		'-p', 'tcp', '--dport', '80', '-j', 'DNAT', '--to-destination', '192.168.22.1:80']
 	subprocess.Popen(redirect_commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 	redirect_commands2 = ['sudo', 'iptables', '-t', 'nat', '-D', 'PREROUTING', '-s', IP,
@@ -69,7 +69,7 @@ def updateLoggedInDatabase(IP, MAC, ticketNumber, seatNumber, lastName):
 
 	command = ['sudo', 'iptables', '-t', 'nat', '-A', 'POSTROUTING', '--source', IP, 
 		'-o', 'eth0', '-j', 'MASQUERADE']
-	p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # Verstuurt content van HTML goed login.
 def correct_login(environ, start_response, ticketNumber, seatNumber, IP, MAC):
