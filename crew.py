@@ -12,6 +12,8 @@ import hashlib
 import datetime
 from datetime import timedelta
 
+import kickDevice
+
 # De standaard pagina die de crew krijgt bij een GET request.
 def sendCrewPage(environ, start_response, triedAlready = False):
 
@@ -30,8 +32,6 @@ def sendCrewPage(environ, start_response, triedAlready = False):
 	for line in file:
 		html += line[:-1]
 	file.close()
-
-	html += "Normal line"
 
 	# Kijken if gebruiker al eerder heeft ingelogd.
 	if triedAlready == True:
@@ -243,17 +243,31 @@ def deleteSession(IP, MAC, environ, start_response):
 # Verstuurt opnieuw een sessie page naar de client.
 def sendSessionPage(IP, MAC, environ, start_response):
 
-	# Kijken of inloggen werkt.
-	html = '<html><body>'
-	html += "USERNAME: " + DBGetUsername(IP, MAC) + "<br>"
-	html += "Succesvol ingelogd!<br>"
-	html += '<form action="/crew/logout" method="post"><input type="submit" value="Logout"/></form>'
-	html += '</body></html>'
-	status = "200 OK"
+	# Open HTML pagina.
+	html = ""
+	file = open("/var/www/FYS/encrypted/crew/loggedin.html", 'r')
+	for line in file:
+		html += line[:-1]
+	file.close()
 
+	# Vervang de keywords met gegevens van databank.
+	table = kickDevice.createHTMLTable()
+
+#	table = '<tr><td>'
+#	table += 'Gregory</td><td>House</td><td>22A</td><td>192.168.22.4</td>'
+#	table += '<td>AA:BB:CC:AA:BB:CC</td><td><button name="Dev1">Delete</button></td></tr>'
+#	table += '<tr><td>Marcus</td><td>Holloway</td><td>22C</td><td>192.168.22.88</td>'
+#	table += '<td>DD:BB:DD:AA:DD:CC</td><td><button name="Dev2">Delete</button></td></tr>'
+	html = html.replace("{{TABLE_DEVICES}}", table)
+	html = html.replace("{{USERNAME}}", DBGetUsername(IP, MAC))
+
+	status = "200 OK"
 	response_header = [('Content-type', 'text/html')]
 	start_response(status, response_header)
 	return [bytes(html, 'utf-8')]
+
+# De functie die de apparaten uit het netwerk verwijdert.
+#def deleteDeviceFromNetwork(IP, MAC):
 
 
 # Deze functie behandelt alle POST requests naar /crew.
