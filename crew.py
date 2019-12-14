@@ -13,6 +13,7 @@ import datetime
 from datetime import timedelta
 
 import kickDevice
+import logger
 
 # De standaard pagina die de crew krijgt bij een GET request.
 def sendCrewPage(environ, start_response, triedAlready = False):
@@ -112,8 +113,24 @@ def sendStaticFiles(environ, start_response):
 		return [static]
 
 # Controleert of een string geen code of string escaping bevat.
-def checkStringValue(string):
-        # Set up a list with forbidden characters.
+def checkStringValue(IP, MAC, string):
+
+	# Als speciale SQLqueries voorkomen in de string.
+	forbiddenStringsSQL = ['SELECT', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'WHERE', 'JOIN']
+	for OneString in forbiddenStringsSQL:
+		if string.upper().find(OneString) != -1:
+			logger.logAction(IP, MAC, "tried to perform SQL injections")
+			return False
+
+	# Als speciale XSS strings voorkomen in de string.
+	forbiddenStringsXSS = ['<SCRIPT>', '</SCRIPT>', 'ALERT(',
+		'</TABLE>', '</INPUT>', '<BUTTON>','</BUTTON>', '<?', '<?PHP>', '?>']
+	for OneString in forbiddenStringsXSS:
+		if string.upper().find(OneString) != -1:
+			logger.logAction(IP, MAC, "tried to perform XSS attack!")
+			return False
+
+        # Een lijst met verboden characters.
 	forbiddenChars = ['#', '\'', '\\', '"', '~', '/', '>', '@', '\n', '\t', '-', '=',
 		'<', '{', '}', ';', ':', '(', ')', '?', '*', '$', '!', '|', '*']
 
@@ -121,11 +138,13 @@ def checkStringValue(string):
 	for characterFromString in string:
 		for charFromForbiddenList in forbiddenChars:
 			if characterFromString == charFromForbiddenList:
+				logger.logAction(IP, MAC, "tried to input a character in the forbidden list.")
 				return False
 
 	# Kijkt of de ASCII waarden tussen de 0-9, a-z en A-Z liggen.
 	for characterFromString in string:
 		if ord(characterFromString) < 48 or ord(characterFromString) > 122:
+			logger.logAction(IP, MAC, "tried to input a character outside the allowed ASCII values")
 			return False
 
 	# Als de string veilig is return waar.
@@ -265,6 +284,9 @@ def sendSessionPage(IP, MAC, environ, start_response):
 	html = html.replace("{{TABLE_DEVICES}}", table)
 	html = html.replace("{{USERNAME}}", DBGetUsername(IP, MAC))
 
+	# Open de logs van website en stuur het op.
+	html = html.replace("{{LOGGING}}", logger.getLogData())
+
 	status = "200 OK"
 	response_header = [('Content-type', 'text/html')]
 	start_response(status, response_header)
@@ -299,9 +321,9 @@ def handlePOSTrequest(environ, start_response):
 	passWord = params.get('CREW_PASSWORD', [''])[0]
 
 	# Input validatie van de variabelen.
-	if checkStringValue(userName) == False:
+	if checkStringValue(IP, MAC, userName) == False:
 		return sendCrewPage(environ, start_response, True)
-	if checkStringValue(passWord) == False:
+	if checkStringValue(IP, MAC, passWord) == False:
 		return sendCrewPage(environ, start_response, True)
 
 	# Inlog checken.

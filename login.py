@@ -9,6 +9,8 @@ import urllib.parse as urlparse
 import os
 import subprocess
 
+import logger
+
 # Verstuurt content van HTML fout login.
 def wrong_login(environ, start_response):
 	status = '200 OK'
@@ -177,8 +179,24 @@ def checkIfTicketLoggedIn(ticketNumber, seatNumber):
 
 
 # Controleert of een string geen code of string escaping bevat.
-def checkStringValue(string):
-	# Set up a list with forbidden characters.
+def checkStringValue(IP, MAC, string):
+
+	# Als speciale SQLqueries voorkomen in de string.
+	forbiddenStringsSQL = ['SELECT', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'WHERE', 'JOIN']
+	for OneString in forbiddenStringsSQL:
+		if string.upper().find(OneString) != -1:
+			logger.logAction(IP, MAC, "tried to perform SQL injections")
+			return False
+
+	# Als speciale XSS strings voorkomen in de string.
+	forbiddenStringsXSS = ['<SCRIPT>', '</SCRIPT>', 'ALERT(',
+		'</TABLE>', '</INPUT>', '<BUTTON>','</BUTTON>', '<?', '<?PHP>', '?>']
+	for OneString in forbiddenStringsXSS:
+		if string.upper().find(OneString) != -1:
+			logger.logAction(IP, MAC, "tried to perform XSS attack!")
+			return False
+
+	# Een lijst met verboden characters.
 	forbiddenChars = ['#', '\'', '\\', '"', '~', '/', '>', '@', '\n', '\t', '-', '=',
 		'<', '{', '}', ';', ':', '(', ')', '?', '*', '$', '!', '|', '*']
 
@@ -186,27 +204,17 @@ def checkStringValue(string):
 	for characterFromString in string:
 		for charFromForbiddenList in forbiddenChars:
 			if characterFromString == charFromForbiddenList:
+				logger.logAction(IP, MAC, "tried to input a character in the forbidden list.")
 				return False
 
 	# Kijkt of de ASCII waarden tussen de 0-9, a-z en A-Z liggen.
 	for characterFromString in string:
 		if ord(characterFromString) < 48 or ord(characterFromString) > 122:
+			logger.logAction(IP, MAC, "tried to input a character outside the allowed ASCII values")
 			return False
-
-	# Lijst met verboden strings om te checken in de variabelen.
-	# Gebasseerd op onderzoek Trisna.
-	'''
-	forbiddenStrings = ['SELECT', 'select', 'drop', '<SCRIPT>','<script>', '/>',
-		'DROP', '<?', '?>']
-	for stringInString in string:
-		for forbiddenStr in forbiddenStrings:
-			if stringInString == forbiddenStr:
-				return False
-	'''
 
 	# Als de string veilig is return waar.
 	return True
-
 
 # Checkt of de ticketnummer met de stoelnummer correct zijn.
 def checkCredentials(ticketNumber, seatNumber):
@@ -238,9 +246,9 @@ def doLogin(environ, start_response):
 	seatNumber = params.get('SEATNUMBER', [''])[0]
 
 	# Kijken of de externe variabelen veilig zijn.
-	if checkStringValue(ticketNumber) == False:
+	if checkStringValue(IP, MAC, ticketNumber) == False:
 		return wrong_login(environ, start_response)
-	if checkStringValue(seatNumber) == False:
+	if checkStringValue(IP, MAC, seatNumber) == False:
 		return wrong_login(environ, start_response)
 
 	# Als het apparaat de POST request nog een keer stuurt, maar al ingelogd is.

@@ -9,6 +9,8 @@ import os
 import subprocess
 import urllib.parse as urlparse
 
+import logger
+
 # Verkrijg het aantal rijen in tabel.
 def GetCountOfLoggedInDevices():
 	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
@@ -132,6 +134,8 @@ def kick(environ, start_response):
 
 	# Checken of de IP en MAC rechten hebben.
 	if isMACandIPAllowed(IP, MAC) == False:
+
+		logger.logAction(IP, MAC, "tried to kick a device without permission")
 		# Doorverwijzen naar / pagina.
 		status = "307 Temporary Redirect"
 		html = '<html><body>Jij hebt geen toestemming!<br><a href="/crew">Klik hier om doorverwezen te worden</a></body></html>'

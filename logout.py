@@ -9,6 +9,8 @@ import urllib.parse as urlparse
 import os
 import subprocess
 
+import logger
+
 # Kijkt of de gebruiker eigenlijk wel online is.
 def checkIfOnline(IP, MAC):
 	connection = mariaDB.connect(host='127.0.0.1', user='root', passwd='IC106_2', db='CaptivePortalDB')
@@ -71,6 +73,7 @@ def doLogout(environ, start_response):
 
 	# Check of gebruiker online is.
 	if checkIfOnline(IP, MAC) == False:
+		logger.logAction(IP, MAC, "tried to logout without loggin in.")
 		return not_online(environ, start_response)
 
 	# Update onze gegevens met de databank en iptables.
