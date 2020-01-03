@@ -16,6 +16,21 @@
 
 using namespace std;
 
+/*   Input validatie   */
+bool inputValidation(string str)
+{
+	string forbiddenChars = "#\\{}<>~/@!|*=;'\"`$%^&+:";
+
+	for (int i = 0; i < str.length(); i++)
+	{
+		for (int j = 0; j < forbiddenChars.length(); j++)
+			if (str[i] == forbiddenChars[j])
+				return true;
+	}
+
+	return false;
+}
+
 /*   Checkt of de string een IP adres is.   */
 bool isIP(string IP)
 {
@@ -40,6 +55,17 @@ bool isHostName(string hostName)
 /*   Voeg een host string toe aan de hosts file.   */
 bool addHostToHostsFile(string host)
 {
+	// Open the log file and add the host here.
+	ofstream logFile("/var/www/FYS/encrypted/banned_websites", ios::app);
+	if (!logFile.is_open())
+	{
+		printf("Failed to open the log file!\n\n");
+		return false;
+	}
+
+	logFile << host << endl;
+	logFile.close();
+
 	// Open de hosts file.
 	ofstream hostsFile("/etc/dnsmasq.conf", ios::app);
 	if (!hostsFile.is_open())
@@ -50,6 +76,7 @@ bool addHostToHostsFile(string host)
 
 	hostsFile << "address=/" + host + "/127.0.0.1" << endl;
 	hostsFile.close();
+
 	return true;
 }
 
@@ -79,6 +106,13 @@ int main(int argc, char* argv[])
 	if (!(secondArg == "-a" || secondArg == "-d"))
 	{
 		printf("Unknown argument/option!\n\n");
+		return -1;
+	}
+
+	// Checken op input validatie.
+	if (inputValidation(argv[2]) == true)
+	{
+		printf("Inputvalidation error!\n\n");
 		return -1;
 	}
 
